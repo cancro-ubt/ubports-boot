@@ -44,20 +44,6 @@ TARGET_VENDOR := "$(shell echo $(PRODUCT_BRAND) | tr '[:upper:]' '[:lower:]')"
 HYBRIS_FSTABS := $(shell find device/$(TARGET_VENDOR) -name *fstab* | grep -v goldfish)
 endif
 
-# Get the unique /dev field(s) from the line(s) containing the fs mount point
-# Note the perl one-liner uses double-$ as per Makefile syntax
-HYBRIS_BOOT_PART := $(shell /usr/bin/perl -w -e '$$fs=shift; if ($$ARGV[0]) { while (<>) { next unless /^$$fs\s|\s$$fs\s/;for (split) {next unless m(^/dev); print "$$_\n"; }}} else { print "ERROR: *fstab* not found\n";}' /boot $(HYBRIS_FSTABS) | sort -u)
-HYBRIS_DATA_PART := $(shell /usr/bin/perl -w -e '$$fs=shift; if ($$ARGV[0]) { while (<>) { next unless /^$$fs\s|\s$$fs\s/;for (split) {next unless m(^/dev); print "$$_\n"; }}} else { print "ERROR: *fstab* not found\n";}' /data $(HYBRIS_FSTABS) | sort -u)
-
-$(warning ********************* /boot appears to live on $(HYBRIS_BOOT_PART))
-$(warning ********************* /data appears to live on $(HYBRIS_DATA_PART))
-
-ifneq ($(words $(HYBRIS_BOOT_PART))$(words $(HYBRIS_DATA_PART)),11)
-$(error There should be a one and only one device entry for HYBRIS_BOOT_PART and HYBRIS_DATA_PART)
-endif
-
-HYBRIS_BOOTIMG_COMMANDLINE += datapart=$(HYBRIS_DATA_PART)
-
 
 ifneq ($(strip $(TARGET_NO_KERNEL)),true)
   INSTALLED_KERNEL_TARGET := $(PRODUCT_OUT)/kernel
@@ -102,8 +88,7 @@ LOCAL_MODULE_PATH := $(PRODUCT_OUT)
 include $(BUILD_SYSTEM)/base_rules.mk
 BOOT_INTERMEDIATE := $(call intermediates-dir-for,ROOT,$(LOCAL_MODULE),)
 
-#BOOT_RAMDISK := $(BOOT_INTERMEDIATE)/ubports-initramfs.gz
-BOOT_RAMDISK := $(LOCAL_PATH)/ubports-initramfs.gz
+BOOT_RAMDISK := $(BOOT_INTERMEDIATE)/ubports-initramfs.gz
 BOOT_RAMDISK_SRC := $(LOCAL_PATH)/initramfs
 BOOT_RAMDISK_FILES := $(shell find $(BOOT_RAMDISK_SRC) -type f)
 
