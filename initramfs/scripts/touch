@@ -279,56 +279,6 @@ mountroot()
 	identify_boot_mode
 
 	# Real partition or image, we both need charger mode.....
-	if ( [ -e /tmpmnt/system.img ] || [ -n "$syspart" ] ) && [ "$BOOT_MODE" = "android" ]; then
-		# Factory/charger mode, just boot directly into the android rootfs
-		mkdir -p /ubuntu-system
-		mkdir -p /android-rootfs
-		mkdir -p /android-system
-
-		echo "initrd: mounting ubuntu system partition" >/dev/kmsg || true
-		if [ -n "$syspart" ]; then
-			mount -o rw $syspart /ubuntu-system
-		else
-			mount -o loop,rw /tmpmnt/system.img /ubuntu-system
-		fi
-		mount -o remount,ro /ubuntu-system
-
-		echo "initrd: mounting android system image" >/dev/kmsg || true
-		mount -o loop,ro /ubuntu-system/var/lib/lxc/android/system.img /android-system
-
-		echo "initrd: extracting android ramdisk" >/dev/kmsg || true
-		OLD_CWD=$(pwd)
-		mount -n -t tmpfs tmpfs /android-rootfs
-		cd /android-rootfs
-		cat /android-system/boot/android-ramdisk.img | gzip -d | cpio -i
-		cd $OLD_CWD
-
-		echo "initrd: using android ramdisk as rootfs" >/dev/kmsg || true
-		mount --move /android-rootfs ${rootmnt}
-
-		# Mounting system
-		mount --move /android-system ${rootmnt}/system
-		mkdir -p ${rootmnt}/ubuntu-system
-		mount --move /ubuntu-system ${rootmnt}/ubuntu-system
-
-		# Mounting userdata
-		mkdir -p ${rootmnt}/data
-		mkdir -p ${rootmnt}/userdata
-		mount --move /tmpmnt ${rootmnt}/userdata
-		mkdir -p ${rootmnt}/userdata/android-data
-		mount -o bind ${rootmnt}/userdata/android-data ${rootmnt}/data
-
-		# Set ubuntu version properties
-		set_ubuntu_version_properties ${rootmnt}/ubuntu-system ${rootmnt}/data
-
-		# Mount all the remaining android partitions
-		mount_android_partitions "${rootmnt}/fstab*" ${rootmnt}
-
-		# Make sure we're booting into android's init
-		ln -s ../init ${rootmnt}/sbin/init
-		ln -s ../init ${rootmnt}/sbin/recovery
-		echo "initrd: booting android..." >/dev/kmsg || true
-    elif [ -e /tmpmnt/system.img -o -n "$syspart" ]; then
 	    # Loop-mounted flipped model
 		# Transition .developer_mode to .writable_image
 		[ -e /tmpmnt/.developer_mode ] && mv /tmpmnt/.developer_mode /tmpmnt/.writable_image
@@ -364,7 +314,8 @@ mountroot()
 		MOUNT="ro"
 		[ -e ${rootmnt}/userdata/.writable_device_image -a -e ${rootmnt}/userdata/.writable_image ] && MOUNT="rw"
 		echo "initrd: mounting device image as $MOUNT" >/dev/kmsg || true
-		mount -o loop,$MOUNT ${rootmnt}/var/lib/lxc/android/system.img /android-system
+		#mount -o loop,$MOUNT ${rootmnt}/var/lib/lxc/android/system.img /android-system
+		mount -o loop,$MOUNT ${rootmnt}/userdata/android-system.img /android-system
 
 		# Get device information
 		device=$(grep ^ro.product.device= /android-system/build.prop |sed -e 's/.*=//')
@@ -498,18 +449,6 @@ mountroot()
 				chown -R $dstown "$user/"
 			fi
 		done
-
-
-	# Old flipped model
-	elif [ -d /tmpmnt/ubuntu ]; then
-		mount --bind /tmpmnt/ubuntu ${rootmnt}
-		mountroot_status="$?"
-
-	# Possibly a re-partitioned device
-	else
-		echo "initrd: Couldn't find a system partition." >/dev/kmsg || true
-		panic "Couldn't find a system partition. Spawning adbd ..."
-	fi
 
 	[ "$quiet" != "y" ] && log_begin_msg "Running /scripts/local-bottom"
 	run_scripts /scripts/local-bottom
